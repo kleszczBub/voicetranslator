@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VoiceTranslate</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#13131a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VoiceTranslate">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3d;
+    --accent: #7c6af7;
+    --accent2: #f06a8e;
+    --text: #e8e8f0;
+    --muted: #6b6b88;
+    --green: #4ade80;
+    --red: #f87171;
+    --glow: rgba(124, 106, 247, 0.25);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* Header */
+  .header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo span {
+    font-style: italic;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: all 0.3s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.listening { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: pulse 1s infinite; }
+  .status-dot.loading { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 0.6s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+
+  /* Lang selector */
+  .lang-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .lang-select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .lang-select:focus { border-color: var(--accent); }
+
+  .swap-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .swap-btn:active { transform: scale(0.9); background: var(--accent); color: white; }
+
+  /* Main content */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Message bubbles */
+  .message {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  .message-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 4px;
+  }
+
+  .bubble {
+    padding: 12px 14px;
+    border-radius: 12px;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+
+  .bubble.original {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text);
+  }
+
+  .bubble.translated {
+    background: linear-gradient(135deg, rgba(124,106,247,0.15), rgba(240,106,142,0.1));
+    border: 1px solid rgba(124,106,247,0.3);
+    border-top-right-radius: 4px;
+    color: var(--text);
+    align-self: flex-end;
+    width: 100%;
+  }
+
+  .bubble.interim {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-style: italic;
+    border-radius: 8px;
+  }
+
+  .timestamp {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    padding: 0 4px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 20px;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    opacity: 0.3;
+  }
+
+  .empty-text {
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 200px;
+  }
+
+  /* Bottom controls */
+  .controls {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mic-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mic-btn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    font-size: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.25s;
+    position: relative;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mic-btn::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    transition: all 0.3s;
+  }
+
+  .mic-btn.listening {
+    background: linear-gradient(135deg, rgba(240,106,142,0.2), rgba(124,106,247,0.2));
+    border-color: var(--accent2);
+    box-shadow: 0 0 24px rgba(240,106,142,0.4);
+    animation: micPulse 1.5s infinite;
+  }
+
+  .mic-btn.listening::before {
+    border-color: rgba(240,106,142,0.3);
+    animation: ringPulse 1.5s infinite;
+  }
+
+  @keyframes micPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+  @keyframes ringPulse { 0%{transform:scale(1);opacity:1} 100%{transform:scale(1.5);opacity:0} }
+
+  .mic-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .mic-status {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-align: center;
+    min-height: 16px;
+  }
+
+  .mic-status.active { color: var(--accent2); }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .action-btn {
+    flex: 1;
+    padding: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action-btn:active { background: var(--border); color: var(--text); }
+
+  /* Speak button inside translation bubble */
+  .speak-btn {
+    margin-top: 6px;
+    padding: 5px 10px;
+    background: rgba(124,106,247,0.15);
+    border: 1px solid rgba(124,106,247,0.3);
+    border-radius: 6px;
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .speak-btn:active, .speak-btn.speaking {
+    background: rgba(124,106,247,0.3);
+    border-color: var(--accent);
+  }
+  .speak-btn.speaking { color: var(--accent2); border-color: var(--accent2); background: rgba(240,106,142,0.15); }
+
+  /* API Key modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.hidden { display: none; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+  .modal-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .modal-desc {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .modal-desc a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .api-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-input:focus { border-color: var(--accent); }
+  .api-input::placeholder { color: var(--muted); }
+
+  .modal-btn {
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .modal-btn:active { opacity: 0.8; }
+
+  .error-msg {
+    background: rgba(248,113,113,0.1);
+    border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--red);
+    font-size: 12px;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* Scrollbar */
+  .content::-webkit-scrollbar { width: 3px; }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Loading dots */
+  .loading-dots {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .loading-dots span {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: dotBounce 1s infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dotBounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+  /* Waveform */
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 24px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .waveform.active { opacity: 1; }
+  .waveform .bar {
+    width: 3px;
+    background: var(--accent2);
+    border-radius: 2px;
+    animation: wave 1s ease-in-out infinite;
+  }
+  .waveform .bar:nth-child(2) { animation-delay: 0.1s; }
+  .waveform .bar:nth-child(3) { animation-delay: 0.2s; }
+  .waveform .bar:nth-child(4) { animation-delay: 0.3s; }
+  .waveform .bar:nth-child(5) { animation-delay: 0.2s; }
+  .waveform .bar:nth-child(6) { animation-delay: 0.1s; }
+  @keyframes wave {
+    0%,100%{height:4px} 50%{height:18px}
+  }
+</style>
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="apiModal">
+  <div class="modal">
+    <div class="modal-title">Voice<span style="font-style:italic">Translate</span></div>
+    <p class="modal-desc">
+      Gib deinen Anthropic API-Key ein, um die Übersetzung zu aktivieren.<br><br>
+      Noch keinen Key? → <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </p>
+    <input class="api-input" type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+    <div class="error-msg" id="errorMsg">Ungültiger API-Key. Bitte überprüfe deinen Key.</div>
+    <button class="modal-btn" onclick="saveApiKey()">Starten →</button>
+  </div>
+</div>
+
+<!-- Permission Error Modal -->
+<div class="modal-overlay hidden" id="permModal">
+  <div class="modal">
+    <div class="modal-title">🎙️ Mikrofon freigeben</div>
+    <p class="modal-desc">
+      Der Browser hat den Mikrofon-Zugriff blockiert (<code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:11px">not-allowed</code>). So behebst du das:
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">🍎 iPhone / Safari</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          Einstellungen → Safari → Mikrofon → <strong style="color:var(--text)">Erlauben</strong><br>
+          Dann diese Seite neu laden.
+        </div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">🤖 Android / Chrome</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          Adressleiste → 🔒 Schloss-Symbol → Mikrofon → <strong style="color:var(--text)">Erlauben</strong><br>
+          Dann diese Seite neu laden.
+        </div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">💻 Desktop-Browser</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          Adressleiste → Kamera/Mikrofon-Symbol → <strong style="color:var(--text)">Immer erlauben</strong><br>
+          Oder: Einstellungen → Datenschutz → Mikrofon → diese Seite erlauben.
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size:11px;color:var(--muted);line-height:1.6">
+      ⚠️ Die App muss über <strong style="color:var(--text)">https://</strong> oder <strong style="color:var(--text)">localhost</strong> geöffnet werden — Mikrofon funktioniert nicht über <code style="background:var(--surface2);padding:2px 5px;border-radius:3px">file://</code>.
+    </p>
+
+    <button class="modal-btn" onclick="document.getElementById('permModal').classList.add('hidden')">Verstanden</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">Voice<span>Translate</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:10px;color:var(--muted)" id="statusLabel">Bereit</span>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+</div>
+
+<!-- Language Bar -->
+<div class="lang-bar">
+  <select class="lang-select" id="sourceLang">
+    <option value="de-DE">🇩🇪 Deutsch</option>
+    <option value="en-US">🇺🇸 English</option>
+    <option value="fr-FR">🇫🇷 Français</option>
+    <option value="es-ES">🇪🇸 Español</option>
+    <option value="it-IT">🇮🇹 Italiano</option>
+    <option value="pt-BR">🇧🇷 Português</option>
+    <option value="nl-NL">🇳🇱 Nederlands</option>
+    <option value="pl-PL">🇵🇱 Polski</option>
+    <option value="ru-RU">🇷🇺 Русский</option>
+    <option value="ja-JP">🇯🇵 日本語</option>
+    <option value="zh-CN">🇨🇳 中文</option>
+    <option value="ko-KR">🇰🇷 한국어</option>
+    <option value="ar-SA">🇸🇦 العربية</option>
+    <option value="tr-TR">🇹🇷 Türkçe</option>
+    <option value="uk-UA">🇺🇦 Українська</option>
+  </select>
+  <button class="swap-btn" onclick="swapLanguages()" title="Sprachen tauschen">⇄</button>
+  <select class="lang-select" id="targetLang">
+    <option value="en">🇺🇸 English</option>
+    <option value="de">🇩🇪 Deutsch</option>
+    <option value="fr">🇫🇷 Français</option>
+    <option value="es">🇪🇸 Español</option>
+    <option value="it">🇮🇹 Italiano</option>
+    <option value="pt">🇧🇷 Português</option>
+    <option value="nl">🇳🇱 Nederlands</option>
+    <option value="pl">🇵🇱 Polski</option>
+    <option value="ru">🇷🇺 Русский</option>
+    <option value="ja">🇯🇵 日本語</option>
+    <option value="zh">🇨🇳 中文</option>
+    <option value="ko">🇰🇷 한국어</option>
+    <option value="ar">🇸🇦 العربية</option>
+    <option value="tr">🇹🇷 Türkçe</option>
+    <option value="uk">🇺🇦 Українська</option>
+  </select>
+</div>
+
+<!-- Content -->
+<div class="content" id="content">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">🎙️</div>
+    <div class="empty-text">Drücke den Mikrofon-Button und sprich. Die Übersetzung erscheint hier.</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="mic-area">
+    <div class="waveform" id="waveform">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center">
+      <button class="mic-btn" id="micBtn" onclick="toggleListening()">🎙️</button>
+      <button class="mic-btn" id="camBtn" onclick="document.getElementById('photoInput').click()" title="Foto übersetzen" style="width:54px;height:54px;font-size:22px">📷</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(event)">
+    <div class="mic-status" id="micStatus">Tippen zum Starten</div>
+  </div>
+  <div class="action-row">
+    <button class="action-btn" onclick="clearAll()">🗑️ Löschen</button>
+    <button class="action-btn" id="manualBtn" onclick="manualTranslate()" style="color:var(--accent)">⚡ Übersetzen</button>
+    <button class="action-btn" id="autoSpeakBtn" onclick="toggleAutoSpeak()">🔇 Auto: AUS</button>
+    <button class="action-btn" onclick="changeApiKey()">🔑 API-Key</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;padding:0 2px">
+    <span style="font-size:10px;color:var(--muted);white-space:nowrap">🐢 Tempo</span>
+    <input type="range" id="ttsRate" min="0.5" max="1.5" step="0.1" value="1.0"
+      style="flex:1;accent-color:var(--accent);cursor:pointer">
+    <span style="font-size:10px;color:var(--muted);white-space:nowrap">🐇</span>
+    <span id="ttsRateLabel" style="font-size:10px;color:var(--accent);width:24px;text-align:right">1.0</span>
+  </div>
+</div>
+
+<script>
+  // ─── State ───────────────────────────────────────────────────────────
+  let apiKey = localStorage.getItem('vt_apikey') || '';
+  let recognition = null;
+  let isListening = false;
+  let isTranslating = false;
+  let interimEl = null;
+  let lastTranslation = '';
+  let pendingFinal = '';
+  let translateTimer = null;
+  let progressiveTimer = null;
+  let lastInterimText = '';
+  let activeStreamId = null;
+
+  const LANG_NAMES = {
+    'en': 'English', 'de': 'Deutsch', 'fr': 'Français',
+    'es': 'Español', 'it': 'Italiano', 'pt': 'Português',
+    'nl': 'Nederlands', 'pl': 'Polski', 'ru': 'Русский',
+    'ja': '日本語', 'zh': '中文', 'ko': '한국어',
+    'ar': 'العربية', 'tr': 'Türkçe', 'uk': 'Українська'
+  };
+
+  // ─── Init ─────────────────────────────────────────────────────────────
+  window.onload = () => {
+    if (!apiKey) {
+      document.getElementById('apiModal').classList.remove('hidden');
+    } else {
+      document.getElementById('apiModal').classList.add('hidden');
+      setStatus('active', 'Bereit');
+    }
+    checkSpeechSupport();
+    document.getElementById('ttsRate').addEventListener('input', e => {
+      document.getElementById('ttsRateLabel').textContent = parseFloat(e.target.value).toFixed(1);
+    });
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  };
+
+  function checkSpeechSupport() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      document.getElementById('micBtn').disabled = true;
+      document.getElementById('micStatus').textContent = '⚠️ Browser unterstützt kein Mikrofon';
+    }
+  }
+
+  // ─── API Key ──────────────────────────────────────────────────────────
+  function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (!key.startsWith('sk-ant-') && !key.startsWith('sk-')) {
+      document.getElementById('errorMsg').classList.add('show');
+      return;
+    }
+    apiKey = key;
+    localStorage.setItem('vt_apikey', key);
+    document.getElementById('apiModal').classList.add('hidden');
+    document.getElementById('errorMsg').classList.remove('show');
+    setStatus('active', 'Bereit');
+  }
+
+  function changeApiKey() {
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('apiModal').classList.remove('hidden');
+  }
+
+  document.getElementById('apiKeyInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveApiKey();
+  });
+
+  // ─── Status ───────────────────────────────────────────────────────────
+  function setStatus(state, label) {
+    const dot = document.getElementById('statusDot');
+    const lbl = document.getElementById('statusLabel');
+    dot.className = 'status-dot ' + state;
+    lbl.textContent = label;
+  }
+
+  // ─── Speech Recognition ───────────────────────────────────────────────
+  function initRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SR();
+    recognition.lang = document.getElementById('sourceLang').value;
+    recognition.interimResults = true;
+    // continuous=false works more reliably on iOS Safari; we restart manually
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      isListening = true;
+      const btn = document.getElementById('micBtn');
+      btn.textContent = '⏹️';
+      btn.classList.add('listening');
+      document.getElementById('waveform').classList.add('active');
+      document.getElementById('micStatus').textContent = 'Höre zu... (sprich jetzt)';
+      document.getElementById('micStatus').classList.add('active');
+      setStatus('listening', 'Hört zu');
+      hideEmpty();
+    };
+
+    recognition.onend = () => {
+      // If we collected interim text but never got a final result (common on iOS),
+      // treat the last interim as final and translate it now.
+      if (lastInterimText && lastInterimText.trim().length > 2) {
+        const text = lastInterimText.trim();
+        lastInterimText = '';
+        removeInterim();
+        pendingFinal += ' ' + text;
+        scheduleTranslation(pendingFinal.trim());
+      }
+      if (isListening) {
+        // Restart for continuous-like behaviour
+        setTimeout(() => {
+          try { recognition.start(); } catch(e) {}
+        }, 200);
+      } else {
+        stopListeningUI();
+      }
+    };
+
+    recognition.onerror = (e) => {
+      console.warn('Speech error:', e.error);
+      if (e.error === 'no-speech') {
+        // Just restart quietly
+        if (isListening) setTimeout(() => { try { recognition.start(); } catch(err) {} }, 300);
+        return;
+      }
+      if (e.error === 'aborted') return;
+      isListening = false;
+      stopListeningUI();
+      if (e.error === 'not-allowed') {
+        showPermissionError();
+      } else {
+        document.getElementById('micStatus').textContent = '⚠️ Fehler: ' + e.error;
+      }
+    };
+
+    recognition.onresult = (e) => {
+      let interimText = '';
+      let finalText = '';
+
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      // Always keep track of latest interim for onend fallback
+      if (interimText) {
+        lastInterimText = interimText;
+        showInterim(interimText);
+        // Progressive translation: start translating after ~4 words without waiting for final
+        const wordCount = interimText.trim().split(/\s+/).length;
+        if (wordCount >= 4) {
+          scheduleProgressiveTranslation(interimText.trim());
+        }
+      }
+
+      // When final text arrives, trigger translation
+      if (finalText) {
+        lastInterimText = '';
+        clearTimeout(progressiveTimer);
+        removeInterim();
+        pendingFinal += ' ' + finalText.trim();
+        scheduleTranslation(pendingFinal.trim());
+      }
+    };
+  }
+
+  function toggleListening() {
+    if (!apiKey) {
+      document.getElementById('apiModal').classList.remove('hidden');
+      return;
+    }
+    if (isListening) {
+      isListening = false;
+      try { recognition.stop(); } catch(e) {}
+    } else {
+      lastInterimText = '';
+      pendingFinal = '';
+      initRecognition();
+      try {
+        recognition.start();
+      } catch(e) {
+        document.getElementById('micStatus').textContent = '⚠️ Mikrofon-Fehler: ' + e.message;
+      }
+    }
+  }
+
+  function stopListeningUI() {
+    const btn = document.getElementById('micBtn');
+    btn.textContent = '🎙️';
+    btn.classList.remove('listening');
+    document.getElementById('waveform').classList.remove('active');
+    document.getElementById('micStatus').textContent = 'Tippen zum Starten';
+    document.getElementById('micStatus').classList.remove('active');
+    setStatus('active', 'Bereit');
+    removeInterim();
+  }
+
+  // ─── Interim display ──────────────────────────────────────────────────
+  function showInterim(text) {
+    if (!interimEl) {
+      interimEl = document.createElement('div');
+      interimEl.className = 'bubble interim';
+      interimEl.id = 'interimBubble';
+      document.getElementById('content').appendChild(interimEl);
+    }
+    interimEl.textContent = '…' + text;
+    scrollBottom();
+  }
+
+  function removeInterim() {
+    const el = document.getElementById('interimBubble');
+    if (el) el.remove();
+    interimEl = null;
+  }
+
+  // ─── Translation ──────────────────────────────────────────────────────
+  // Single active bubble pair — always updated in-place, never duplicated
+  let activePairId = null;   // ID des aktuellen Blasenpaars
+  let lastTranslatedText = ''; // zuletzt übersetzter Text (Duplikat-Schutz)
+
+  function scheduleTranslation(text) {
+    clearTimeout(translateTimer);
+    clearTimeout(progressiveTimer);
+    translateTimer = setTimeout(() => {
+      pendingFinal = '';
+      doTranslate(text, false);
+    }, 400);
+  }
+
+  function scheduleProgressiveTranslation(text) {
+    clearTimeout(progressiveTimer);
+    progressiveTimer = setTimeout(() => {
+      doTranslate(text, true);
+    }, 700);
+  }
+
+  // progressiveBubbleId: reuse this bubble ID for live updates
+  let progressiveBubbleId = null;
+
+  async function doTranslate(text, isProgressive) {
+    if (!text.trim()) return;
+    // Duplikat vermeiden: gleichen Text nicht zweimal übersetzen
+    if (text.trim() === lastTranslatedText) return;
+
+    const targetLang = document.getElementById('targetLang').value;
+    const targetName = LANG_NAMES[targetLang] || targetLang;
+    const sourceLangCode = document.getElementById('sourceLang').value.split('-')[0];
+    const sourceName = LANG_NAMES[sourceLangCode] || sourceLangCode;
+
+    // Erzeuge ein neues Paar nur wenn:
+    // - kein aktives Paar existiert, ODER
+    // - es eine finale Übersetzung ist (neuer Satz beginnt)
+    if (!activePairId || !document.getElementById(activePairId + '_t')) {
+      // Neues Paar anlegen
+      activePairId = 'pair_' + Date.now();
+      addPair(activePairId, text, sourceName, targetName);
+    } else {
+      // Originaltext im bestehenden Paar aktualisieren
+      const origEl = document.getElementById(activePairId + '_o');
+      if (origEl) origEl.textContent = text;
+      // Übersetzungsblase auf Laden setzen
+      const transEl = document.getElementById(activePairId + '_t');
+      if (transEl) transEl.innerHTML =
+        '<div class="loading-dots"><span></span><span></span><span></span></div>';
+    }
+
+    const myPairId = activePairId;
+    setStatus('loading', 'Übersetze...');
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Translate the following text from ${sourceName} to ${targetName}. Return ONLY the translation, nothing else, no explanation, no quotes.\n\nText: ${text}`
+          }]
+        })
+      });
+
+      // Veraltetes Ergebnis verwerfen wenn neues Paar gestartet wurde
+      if (myPairId !== activePairId) return;
+
+      const data = await response.json();
+      if (!response.ok) {
+        const errMsg = data.error?.message || `HTTP ${response.status}`;
+        setTranslation(myPairId, '⚠️ API-Fehler: ' + errMsg, targetName);
+        setStatus('active', 'Fehler');
+        return;
+      }
+
+      const translation = data.content?.[0]?.text?.trim() || 'Leere Antwort.';
+      lastTranslation = translation;
+      lastTranslatedText = text.trim();
+
+      setTranslation(myPairId, translation, targetName);
+
+      // Nach finaler Übersetzung: nächster Satz bekommt neues Paar
+      if (!isProgressive) {
+        activePairId = null;
+        lastTranslatedText = '';
+        if (autoSpeak) {
+          const dummyBtn = { classList:{contains:()=>false,add:()=>{},remove:()=>{}}, innerHTML:'' };
+          speakText(dummyBtn, translation, targetLang);
+        }
+      }
+
+      setStatus('active', 'Bereit');
+      document.getElementById('micStatus').textContent =
+        isListening ? 'Höre zu... (sprich jetzt)' : 'Tippen zum Starten';
+
+    } catch (err) {
+      setTranslation(myPairId, '⚠️ Fehler: ' + err.message, targetName);
+      setStatus('active', 'Fehler');
+    }
+  }
+
+  async function translateText(text, streamId, isProgressive = false) {
+    // Legacy-Wrapper für Foto-Übersetzung
+    return doTranslate(text, isProgressive);
+  }
+
+  // ─── UI helpers ───────────────────────────────────────────────────────
+  function hideEmpty() {
+    document.getElementById('emptyState').style.display = 'none';
+  }
+
+  // Erstellt ein Paar: Originalblase + Übersetzungsblase mit stabilen IDs
+  function addPair(pairId, originalText, sourceName, targetName) {
+    hideEmpty();
+    const content = document.getElementById('content');
+    const now = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message';
+    wrapper.id = pairId;
+    wrapper.innerHTML = `
+      <div class="message-label">${sourceName}</div>
+      <div class="bubble original" id="${pairId}_o">${escapeHtml(originalText)}</div>
+      <div class="message-label" style="margin-top:6px">${targetName}</div>
+      <div class="bubble translated" id="${pairId}_t">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px" id="${pairId}_footer">
+        <span></span>
+        <div class="timestamp">${now}</div>
+      </div>
+    `;
+    content.appendChild(wrapper);
+    scrollBottom();
+  }
+
+  // Setzt die fertige Übersetzung in das bestehende Paar
+  function setTranslation(pairId, translation, targetName) {
+    const transEl = document.getElementById(pairId + '_t');
+    const footerEl = document.getElementById(pairId + '_footer');
+    if (!transEl) return;
+    transEl.innerHTML = escapeHtml(translation);
+    if (footerEl) {
+      const ttsLang = document.getElementById('targetLang').value;
+      const speakBtn = document.createElement('button');
+      speakBtn.className = 'speak-btn';
+      speakBtn.innerHTML = '🔊 Vorlesen';
+      speakBtn.dataset.text = translation;
+      speakBtn.dataset.lang = ttsLang;
+      speakBtn.addEventListener('click', () => speakText(speakBtn, speakBtn.dataset.text, speakBtn.dataset.lang));
+      const ts = document.createElement('div');
+      ts.className = 'timestamp';
+      ts.textContent = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+      footerEl.innerHTML = '';
+      footerEl.appendChild(speakBtn);
+      footerEl.appendChild(ts);
+    }
+    scrollBottom();
+  }
+
+  function addMessage(text, type, langName) {
+    // Nur noch für Foto-Originaltext genutzt
+    const content = document.getElementById('content');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message';
+    const now = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    wrapper.innerHTML = `
+      <div class="message-label">${langName}</div>
+      <div class="bubble ${type}">${escapeHtml(text)}</div>
+      <div class="timestamp">${now}</div>
+    `;
+    content.appendChild(wrapper);
+    scrollBottom();
+  }
+
+  function addLoadingBubble(id, langName) {
+    const content = document.getElementById('content');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message';
+    wrapper.id = id;
+    wrapper.innerHTML = `
+      <div class="message-label">${langName}</div>
+      <div class="bubble translated" style="display:flex;align-items:center;gap:8px;">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+      </div>
+    `;
+    content.appendChild(wrapper);
+    scrollBottom();
+  }
+
+  function replaceLoadingBubble(id, translation, langName) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const now = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    const ttsLang = document.getElementById('targetLang').value;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble translated';
+    bubble.textContent = translation;
+
+    const speakBtn = document.createElement('button');
+    speakBtn.className = 'speak-btn';
+    speakBtn.innerHTML = '🔊 Vorlesen';
+    speakBtn.dataset.text = translation;
+    speakBtn.dataset.lang = ttsLang;
+    speakBtn.addEventListener('click', () => speakText(speakBtn, speakBtn.dataset.text, speakBtn.dataset.lang));
+
+    const ts = document.createElement('div');
+    ts.className = 'timestamp';
+    ts.textContent = now;
+
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:0 4px';
+    footer.appendChild(speakBtn);
+    footer.appendChild(ts);
+
+    const label = document.createElement('div');
+    label.className = 'message-label';
+    label.textContent = langName;
+
+    el.innerHTML = '';
+    el.appendChild(label);
+    el.appendChild(bubble);
+    el.appendChild(footer);
+    scrollBottom();
+  }
+
+  function scrollBottom() {
+    const content = document.getElementById('content');
+    content.scrollTop = content.scrollHeight;
+  }
+
+  function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function clearAll() {
+    const content = document.getElementById('content');
+    content.innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-icon">🎙️</div><div class="empty-text">Drücke den Mikrofon-Button und sprich. Die Übersetzung erscheint hier.</div></div>';
+    lastTranslation = '';
+    pendingFinal = '';
+    interimEl = null;
+    progressiveBubbleId = null;
+    activePairId = null;
+    lastTranslatedText = '';
+  }
+
+  function showPermissionError() {
+    document.getElementById('permModal').classList.remove('hidden');
+  }
+
+  function manualTranslate() {
+    const text = lastInterimText.trim() || pendingFinal.trim();
+    if (!text) {
+      document.getElementById('micStatus').textContent = '⚠️ Kein Text erkannt';
+      return;
+    }
+    lastInterimText = '';
+    pendingFinal = '';
+    removeInterim();
+    clearTimeout(translateTimer);
+    translateText(text);
+  }
+
+  // ─── Text-to-Speech ───────────────────────────────────────────────────
+  let currentUtterance = null;
+  let autoSpeak = false;
+  let ttsKeepAlive = null;
+
+  function speakText(btn, text, lang) {
+    if (!('speechSynthesis' in window)) {
+      alert('Dein Browser unterstützt keine Sprachausgabe.');
+      return;
+    }
+    // Stop if already speaking
+    if (btn.classList && btn.classList.contains('speaking')) {
+      stopSpeaking(btn);
+      return;
+    }
+    // Stop any other ongoing speech
+    stopAllSpeaking();
+
+    const utter = new SpeechSynthesisUtterance(text);
+    const ttsLangMap = {
+      en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', it:'it-IT',
+      pt:'pt-BR', nl:'nl-NL', pl:'pl-PL', ru:'ru-RU', ja:'ja-JP',
+      zh:'zh-CN', ko:'ko-KR', ar:'ar-SA', tr:'tr-TR', uk:'uk-UA'
+    };
+    utter.lang = ttsLangMap[lang] || lang;
+    utter.rate = parseFloat(document.getElementById('ttsRate').value) || 1.0;
+
+    if (btn.classList) {
+      btn.classList.add('speaking');
+      btn.innerHTML = '⏹ Stop';
+    }
+
+    const cleanup = () => {
+      clearInterval(ttsKeepAlive);
+      ttsKeepAlive = null;
+      if (btn.classList) {
+        btn.classList.remove('speaking');
+        btn.innerHTML = '🔊 Vorlesen';
+      }
+    };
+
+    utter.onend = cleanup;
+    utter.onerror = cleanup;
+
+    // Android Chrome Bug: speechSynthesis pausiert nach ~15s still
+    // Workaround: alle 10s pause+resume aufrufen
+    ttsKeepAlive = setInterval(() => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      } else {
+        clearInterval(ttsKeepAlive);
+      }
+    }, 10000);
+
+    currentUtterance = utter;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function stopSpeaking(btn) {
+    window.speechSynthesis.cancel();
+    clearInterval(ttsKeepAlive);
+    if (btn && btn.classList) {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '🔊 Vorlesen';
+    }
+  }
+
+  function stopAllSpeaking() {
+    window.speechSynthesis.cancel();
+    clearInterval(ttsKeepAlive);
+    document.querySelectorAll('.speak-btn.speaking').forEach(b => {
+      b.classList.remove('speaking');
+      b.innerHTML = '🔊 Vorlesen';
+    });
+  }
+
+  function toggleAutoSpeak() {
+    autoSpeak = !autoSpeak;
+    const btn = document.getElementById('autoSpeakBtn');
+    btn.textContent = autoSpeak ? '🔊 Auto: AN' : '🔇 Auto: AUS';
+    btn.style.color = autoSpeak ? 'var(--green)' : '';
+    btn.style.borderColor = autoSpeak ? 'var(--green)' : '';
+  }
+
+  // ─── Photo / Image Translation ────────────────────────────────────────
+  function handlePhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    // Reset input so same photo can be selected again
+    event.target.value = '';
+
+    if (!apiKey) {
+      document.getElementById('apiModal').classList.remove('hidden');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const base64 = dataUrl.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
+      translateImage(base64, mimeType, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function translateImage(base64, mimeType, previewUrl) {
+    const targetLang = document.getElementById('targetLang').value;
+    const targetName = LANG_NAMES[targetLang] || targetLang;
+
+    hideEmpty();
+    setStatus('loading', 'Lese Foto...');
+    document.getElementById('micStatus').textContent = 'Analysiere Foto...';
+
+    // Add photo preview bubble
+    const previewId = 'photo_' + Date.now();
+    addPhotoBubble(previewId, previewUrl);
+
+    // Add loading translation bubble
+    const loadingId = 'photoload_' + Date.now();
+    addLoadingBubble(loadingId, targetName);
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: mimeType, data: base64 }
+              },
+              {
+                type: 'text',
+                text: `Please extract ALL text visible in this image and translate it to ${targetName}. 
+Format your response as:
+ORIGINAL:
+[all extracted text, preserving line breaks]
+
+ÜBERSETZUNG:
+[full translation in ${targetName}]
+
+If there is no text in the image, reply with: "Kein Text im Bild gefunden."`
+              }
+            ]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        const errMsg = data.error?.message || `HTTP ${response.status}`;
+        replaceLoadingBubble(loadingId, '⚠️ API-Fehler: ' + errMsg, targetName);
+        setStatus('active', 'Fehler');
+        return;
+      }
+
+      const result = data.content?.[0]?.text?.trim() || 'Keine Antwort erhalten.';
+
+      // Parse original and translation from response
+      const origMatch = result.match(/ORIGINAL:\s*([\s\S]*?)(?=ÜBERSETZUNG:|$)/i);
+      const transMatch = result.match(/ÜBERSETZUNG:\s*([\s\S]*?)$/i);
+
+      const originalText = origMatch ? origMatch[1].trim() : '';
+      const translatedText = transMatch ? transMatch[1].trim() : result;
+
+      lastTranslation = translatedText;
+
+      // Show original text extracted
+      if (originalText && originalText !== 'Kein Text im Bild gefunden.') {
+        updatePhotoBubble(previewId, originalText);
+      }
+      replaceLoadingBubble(loadingId, translatedText, targetName);
+
+      if (autoSpeak && translatedText) {
+        const dummyBtn = { classList: { contains: () => false, add: ()=>{}, remove: ()=>{} }, innerHTML: '' };
+        speakText(dummyBtn, translatedText, targetLang);
+      }
+
+      setStatus('active', 'Bereit');
+      document.getElementById('micStatus').textContent = 'Tippen zum Starten';
+
+    } catch (err) {
+      replaceLoadingBubble(loadingId, '⚠️ Fehler: ' + err.message, targetName);
+      setStatus('active', 'Fehler');
+      document.getElementById('micStatus').textContent = 'Tippen zum Starten';
+    }
+  }
+
+  function addPhotoBubble(id, previewUrl) {
+    const content = document.getElementById('content');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message';
+    wrapper.id = id;
+    const now = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    wrapper.innerHTML = `
+      <div class="message-label">📷 Foto</div>
+      <div class="bubble original" style="padding:8px">
+        <img src="${previewUrl}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;display:block">
+      </div>
+      <div class="timestamp">${now}</div>
+    `;
+    content.appendChild(wrapper);
+    scrollBottom();
+  }
+
+  function updatePhotoBubble(id, extractedText) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const img = el.querySelector('img');
+    const bubble = el.querySelector('.bubble.original');
+    if (img && bubble) {
+      bubble.innerHTML = `
+        <img src="${img.src}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px">
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(extractedText)}</div>
+      `;
+    }
+    scrollBottom();
+  }
+
+  function copyLast() {
+    if (!lastTranslation) return;
+    navigator.clipboard.writeText(lastTranslation).then(() => {
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✓ Kopiert!';
+      setTimeout(() => btn.textContent = orig, 1500);
+    });
+  }
+
+  function swapLanguages() {
+    const src = document.getElementById('sourceLang');
+    const tgt = document.getElementById('targetLang');
+    const srcCode = src.value.split('-')[0];
+    const tgtCode = tgt.value;
+
+    // Find matching source lang option for target
+    const srcOptions = Array.from(src.options);
+    const match = srcOptions.find(o => o.value.startsWith(tgtCode + '-') || o.value === tgtCode);
+    if (match) src.value = match.value;
+
+    // Find matching target lang for source
+    const tgtOptions = Array.from(tgt.options);
+    const match2 = tgtOptions.find(o => o.value === srcCode);
+    if (match2) tgt.value = match2.value;
+  }
+</script>
+</body>
+</html>
